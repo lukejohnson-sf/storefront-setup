@@ -21,26 +21,60 @@ IN_REPO=false
 
 # ── 1. Node.js 24+ ───────────────────────────────────────────────────────────
 step "Checking Node.js (required: 24+)"
+NEED_NODE=false
 if ! command -v node &>/dev/null; then
-  err "Node.js not found. Install it from https://nodejs.org and re-run this script."
+  NEED_NODE=true
+else
+  NODE_MAJOR=$(node --version | sed 's/v//' | cut -d. -f1)
+  [[ "$NODE_MAJOR" -lt 24 ]] && NEED_NODE=true
 fi
-NODE_MAJOR=$(node --version | sed 's/v//' | cut -d. -f1)
-if [[ "$NODE_MAJOR" -lt 24 ]]; then
-  err "Node.js $(node --version) is too old (need 24+). Update at https://nodejs.org and re-run."
+
+if [[ "$NEED_NODE" == true ]]; then
+  echo -e "${YELLOW}  Node.js 24+ is required but not installed.${NC}"
+  read -rp "  Install it now via nvm? [Y/n] " CONFIRM
+  if [[ "$CONFIRM" =~ ^[Nn]$ ]]; then
+    err "Node.js 24+ is required. Re-run once it's installed."
+  fi
+  echo -e "${YELLOW}  Installing nvm...${NC}"
+  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+  export NVM_DIR="$HOME/.nvm"
+  # shellcheck source=/dev/null
+  [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
+  echo -e "${YELLOW}  Installing Node.js 24...${NC}"
+  nvm install 24
+  nvm use 24
 fi
 ok "Node.js $(node --version)"
 
 # ── 2. pnpm ──────────────────────────────────────────────────────────────────
 step "Checking pnpm"
 if ! command -v pnpm &>/dev/null; then
-  err "pnpm not found. Install it with: npm install -g pnpm"
+  echo -e "${YELLOW}  pnpm is required but not installed.${NC}"
+  read -rp "  Install it now via npm? [Y/n] " CONFIRM
+  if [[ "$CONFIRM" =~ ^[Nn]$ ]]; then
+    err "pnpm is required. Re-run once it's installed."
+  fi
+  npm install -g pnpm
 fi
 ok "pnpm $(pnpm --version)"
 
 # ── 3. GitHub CLI ────────────────────────────────────────────────────────────
 step "Checking GitHub CLI (gh)"
 if ! command -v gh &>/dev/null; then
-  err "GitHub CLI not found. Install it from https://cli.github.com and re-run."
+  echo -e "${YELLOW}  GitHub CLI (gh) is required but not installed.${NC}"
+  read -rp "  Install it now? [Y/n] " CONFIRM
+  if [[ "$CONFIRM" =~ ^[Nn]$ ]]; then
+    err "GitHub CLI is required. Re-run once it's installed."
+  fi
+  GH_VERSION="2.70.0"
+  ARCH=$(uname -m)
+  [[ "$ARCH" == "arm64" ]] && GH_ARCH="arm64" || GH_ARCH="amd64"
+  GH_PKG="gh_${GH_VERSION}_macOS_${GH_ARCH}.zip"
+  echo -e "${YELLOW}  Downloading gh ${GH_VERSION}...${NC}"
+  curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${GH_PKG}" -o /tmp/gh.zip
+  unzip -q /tmp/gh.zip -d /tmp/gh-install
+  sudo mv "/tmp/gh-install/gh_${GH_VERSION}_macOS_${GH_ARCH}/bin/gh" /usr/local/bin/gh
+  rm -rf /tmp/gh.zip /tmp/gh-install
 fi
 ok "gh $(gh --version | head -1)"
 
